@@ -1,0 +1,155 @@
+---
+title: 'Treatment Options Analysis'
+output: html_document
+date: '2026-04-16'
+---
+
+```{r}
+library(tidyverse)
+library(survival)
+library(survminer)
+library(broom)
+library(lubridate)
+library(ggsurvfit)
+library(gtsummary)
+library(tidycmprsk)
+library(broom.helpers)
+```
+
+```{r}
+HT_DS <- read.csv('trial_ht.csv')
+HT_DS
+```
+
+```{r}
+#Check if variables are categotrical or binary by counting unique variables
+length(unique(HT_DS$prog_event))
+length(unique(HT_DS$chemo))
+length(unique(HT_DS$prognostic_group))
+
+```
+
+
+```{r}
+#Check missing data
+sum(is.na(HT_DS))
+```
+
+```{r}
+#Data transformation - Convert variables to factors and create survival object
+HT_DS <- HT_DS %>%
+  mutate(
+    arm = factor(arm, levels = c('SOC', 'HT')),
+    prognostic_group = factor(prognostic_group,
+                              levels = c('Good', 'Medium', 'Poor')),
+    chemo = factor(chemo, levels = c('No', 'Yes')),
+    surv_obj = Surv(time = t_prog, event = prog_event)
+  )
+```
+
+```{r}
+#Check randomisation balance
+table(HT_DS$arm)
+```
+```{r}
+#Log rank test - Unajusted comparison of survival curve
+survdiff(surv_obj ~ arm, data = HT_DS)
+```
+
+
+Events, follow up / chemo by arm
+```{r}
+#Descriptive summaries
+HT_DS %>%
+  summarise(
+    n_patients = n(),
+    events = sum(prog_event),
+    median_fu = median(t_prog),
+    mean_fu = mean(t_prog),
+    .groups = 'drop'
+  )
+
+```
+```{r}
+#Balance checks
+#Patients per arm
+HT_DS %>%
+  count(arm) %>%
+  pivot_wider(names_from = arm, values_from = n)
+
+#Prognostic group arm
+HT_DS %>%
+  count(arm, prognostic_group) %>%
+  pivot_wider(names_from = arm, values_from = n)
+
+#Chemotherapy arm
+HT_DS %>%
+  count(arm, chemo) %>%
+  pivot_wider(names_from = arm, values_from = n)
+
+```
+
+
+```{r}
+#Overall survival obkect
+s1 <- survfit(Surv(t_prog, prog_event) ~ 1, data = HT_DS)
+str(s1)
+```
+
+Kaplan-Meier plot (survival analysis)
+```{r}
+#Kaplan-Meier plot
+survfit2(surv_obj ~ arm, data = HT_DS) %>%
+  ggsurvfit() +
+  labs(
+    x = 'Days from randomisation',
+    y = '(DFS) Survival probability'
+  ) +
+  add_confidence_interval ()+
+  add_risktable()
+
+
+```
+
+
+
+```{r}
+#Cox multivariable prop hazards model - adjusted
+HT.cox <- coxph(surv_obj ~ arm + prognostic_group + chemo, data = HT_DS)
+summary(HT.cox)
+
+tidy(HT.cox, exponentiate = TRUE, conf.int = TRUE) %>%
+  filter(term == 'armHT')
+
+cox.zph(HT.cox) #Test proportional hazards
+```
+
+```{r}
+#Sensitivity analysis - Stratfied cox model
+HT.strat <- coxph(surv_obj ~ arm + strata(prognostic_group) + strata(chemo), data = HT_DS)
+
+tidy(HT.strat, exponentiate = TRUE, conf.int = TRUE
+     )
+
+cox.zph(HT.strat) #Test proportional hazards in stratified model
+```
+
+```{r}
+#Stratified model summary table
+gtsummary::tbl_regression(HT.strat, exponentiate = TRUE)
+```
+
+
+```{r}
+#Adjusted vs. Stratified model comparison:
+tbl_stack(
+  list(
+    tbl_regression(HT.cox, exponentiate = TRUE, include = 'arm'),
+    tbl_regression(HT.strat, exponentiate = TRUE, include = 'arm')
+  ),
+  group_header = c('Adjusted (covariates)', 'Stratified')
+) %>%
+modify_header(label = 'Model', estimate = 'HR')
+```
+
+
