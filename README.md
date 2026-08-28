@@ -21,3 +21,9 @@ Summary statistics:
 # Methods
 
 Kaplan-Meier curves and log-rank test were used for unadjusted comparison of survival between treatment arms. A Cox proportional hazards model was fitted with treatment arm, prognostic group, and chemotherapy as predictors. The proportional hazards assumption was tested using Schoenfeld residuals. Violations were detected for prognostic group (p = .024) and chemotherapy (p < .001), so a stratified Cox model was fitted as a sensitivity analysis, allowing each combination of prognostic group and chemotherapy to have its own baseline hazard while estimating a common treatment hazard ratio. Likelihood ratio tests were used for model comparison.
+
+## Visual
+![ss](visualisation/Kaplan-Meier)
+
+![ss](visualisation/Table.png)
+
